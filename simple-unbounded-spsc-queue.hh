@@ -42,31 +42,10 @@ public:
         }
     }
 
-    SPSC(const SPSC&)
-    : callback_{ std::nullopt }
-    , head_{ nullptr }
-    , tail_{ nullptr }
-    , stop_requested_{ false }
-    {
-        throw std::runtime_error("not copyable");
-    }
-
-    SPSC& operator=(const SPSC&){
-        throw std::runtime_error("not copyable");
-    }
-
-    SPSC(SPSC&&) noexcept(false)
-    : callback_{ std::nullopt }
-    , head_{ nullptr }
-    , tail_{ nullptr }
-    , stop_requested_{ false }
-    {
-        throw std::runtime_error("not movable");
-    }
-
-    SPSC& operator=(SPSC&&) noexcept(false){
-        throw std::runtime_error("not movable");
-    }
+    SPSC(const SPSC&) = delete;
+    SPSC& operator=(const SPSC&) = delete;
+    SPSC(SPSC&&) = delete;
+    SPSC& operator=(SPSC&&) = delete;
 
     void PushWork(const DataWrapper<T>& wrapper){
         Node* new_node = new Node(wrapper);
