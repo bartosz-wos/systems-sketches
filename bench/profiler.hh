@@ -3,6 +3,7 @@
 #include <chrono>
 #include <string_view>
 #include <type_traits>
+#include <x86intrin.h>
 
 #if __has_include(<print>)
 #  include <print>
@@ -22,6 +23,44 @@ inline void do_not_optimize(T&& value) noexcept{
     asm volatile("" : "+r,m"(value) : : "memory");
   }
 }
+
+struct ChronoClock{
+  using time_point = std::chrono::steady_clock::time_point;
+  static constexpr std::string_view unit = "ns";
+
+  static time_point now() noexcept{
+    return std::chrono::steady_clock::now();
+  }
+
+  static uint64_t elapsed(time_point start, time_point end) noexcept{
+    return static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count()
+    );
+  }
+};
+
+struct RdtscClock{
+  using time_point = uint64_t;
+  static constexpr std::string_view unit = "cycles";
+
+  static time_point now() noexcept{
+    return __rdtsc();
+  }
+};
+
+struct RdtscpClock{
+  using time_point = uint64_t;
+  static constexpr std::string_view unit = "cycles";
+
+  static time_point now() noexcept{
+    unsigned int temp;
+    return __rdtscp(&temp);
+  }
+
+  static uint64_t elapsed(time_point start, time_point end) noexcept{
+    return end - start;
+  }
+};
 
 struct Timer{
   using Clock = std::chrono::steady_clock;
