@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdio>
 #include <cstdint>
 #include <chrono>
 #include <string_view>
@@ -54,6 +55,28 @@ struct ChronoClock{
   }
 };
 
+struct EmptyCoreTracker{};
+
+struct CoreTracker{
+  uint32_t cpu_id{ 0 };
+
+  [[nodiscard]]
+  constexpr uint32_t cpu() const noexcept{
+    return cpu_id & 0xFFF;
+  }
+
+  [[nodiscard]]
+  constexpr uint32_t numa_node() const noexcept{
+    return cpu_id >> 12;
+  }
+};
+
+template<typename Value, typename Metadata = EmptyCoreTracker>
+struct Point{
+  Value value{};
+  [[no_unique_address]] Metadata meta{};
+};
+
 struct RdtscClock{
   using time_point = uint64_t;
   static constexpr std::string_view unit = "cycles";
@@ -71,24 +94,52 @@ struct RdtscClock{
   }
 };
 
+template<bool TrackCore = false>
 struct SerializedRdtscClock{
-  using time_point = uint64_t;
+  using metadata_type = std::conditional_t<TrackCore, CoreTracker, EmptyCoreTracker>;
+  using time_point    = Point<uint64_t, metadata_type>;
   static constexpr std::string_view unit = "cycles";
 
   static time_point start() noexcept{
     _mm_lfence();
-    return __rdtsc();
+    if constexpr(TrackCore){
+      unsigned int temp;
+      uint64_t tsc = __rdtscp(&temp);
+      _mm_lfence();
+      return { tsc, CoreTracker{temp} };
+    }else{
+      uint64_t tsc = __rdtsc();
+      return { tsc, {} };
+    }
   }
 
   static time_point stop() noexcept{
     unsigned int temp;
     uint64_t tsc = __rdtscp(&temp);
     _mm_lfence();
-    return tsc;
+
+    if constexpr(TrackCore){
+      return { tsc, CoreTracker{temp} };
+    }else{
+      return { tsc, {} };
+    }
   }
 
   static uint64_t elapsed(time_point start, time_point end) noexcept{
-    return end - start;
+    if constexpr(TrackCore){
+      if(start.meta.cpu_id != end.meta.cpu_id){
+#if defined(__cpp_lib_print)
+        std::println(stderr, "Core migrated: {} (node {}) to {} (node {})",
+          start.meta.cpu(), start.meta.numa_node(),
+          end.meta.cpu(), end.meta.numa_node()
+        );
+#else
+        std::cerr << "Core migration detected\n";
+#endif
+      }
+    }
+
+    return end.value - start.value;
   }
 };
 
@@ -137,8 +188,9 @@ struct Timer{
 
 };
 
-using CycleTimer  = Timer<RdtscClock>;
-using ChronoTimer = Timer<ChronoClock>;
-using SerializedCycleTimer = Timer<SerializedRdtscClock>;
+using CycleTimer                      = Timer<RdtscClock>;
+using ChronoTimer                     = Timer<ChronoClock>;
+using SerializedCycleTimer            = Timer<SerializedRdtscClock<>>;
+using CoreTrackedSerializedCycleTimer = Timer<SerializedRdtscClock<true>>;
 
 } // namespace bench
