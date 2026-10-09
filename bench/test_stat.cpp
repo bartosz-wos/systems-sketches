@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <sched.h>
 #include <thread>
+#include <random>
+#include <utility>
 
 #if __has_include(<print>)
 # include <print>
@@ -29,8 +31,16 @@ struct Stats{
   uint64_t max;
 };
 
+static void pin_thread(unsigned int core_id){
+  cpu_set_t cpuset;
+  CPU_ZERO(&cpuset);
+  CPU_SET(core_id, &cpuset);
+  [[maybe_unused]] int code = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+  assert(code == 0 && "pthread_setaffinity_np failed");
+}
+
 template<bench::Clock C>
-Stats measure_clocks_overhead(std::size_t iters = 100'000){
+static Stats measure_clocks_overhead(std::size_t iters = 1u << 17){
   assert(iters > 0);
   std::vector<uint64_t> samples;
   samples.reserve(iters);
@@ -51,16 +61,49 @@ Stats measure_clocks_overhead(std::size_t iters = 100'000){
   };
 }
 
-void pin_thread(unsigned int core_id){
-  cpu_set_t cpuset;
-  CPU_ZERO(&cpuset);
-  CPU_SET(core_id, &cpuset);
-  pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+static Stats measure_migration_latency(unsigned int ncores, std::size_t iters = 1u << 10){
+  assert(ncores > 1);
+  assert(iters > 0);
+
+  std::mt19937 rng{ 134561 };
+  std::uniform_int_distribution<unsigned int> cdist(0, ncores - 1);
+  std::uniform_int_distribution<unsigned int> offdist(1, ncores - 1);
+
+  std::vector<std::pair<unsigned int, unsigned int>> pairs;
+  pairs.reserve(iters);
+  for(std::size_t i{ 0 }; i < iters; ++i){
+    unsigned int core = cdist(rng);
+    pairs.emplace_back(core, (core + offdist(rng)) % ncores);
+  }
+
+  std::vector<uint64_t> samples;
+  samples.reserve(iters);
+
+  using Clock = bench::SerializedRdtscClock<true>;
+
+  for(const auto& [c0, c1] : pairs){
+    pin_thread(c0);
+    auto t0 = Clock::start();
+    pin_thread(c1);
+    auto t1 = Clock::stop();
+
+    uint64_t diff = (t1.value >= t0.value) ? (t1.value - t0.value) : 0;
+    samples.push_back(diff);
+  }
+
+  std::ranges::sort(samples);
+
+  return Stats{
+    .min = samples.front(),
+    .p50 = samples[iters >> 1],
+    .p99 = samples[static_cast<std::size_t>(iters * 0.99)],
+    .max = samples.back()
+  };
 }
 
-void print_stats(std::string_view name, const Stats& s, std::string_view unit){
+static void print_stats(std::string_view name, const Stats& s, std::string_view unit){
 #if defined(__cpp_lib_print)
-  std::println("{:<32} | min: {:>4} | p50: {:>4} | p99 {:>5} | max: {:>6} {}", name, s.min, s.p50, s.p99, s.max, unit);
+  std::println("{:<32} | min: {:>4} | p50: {:>4} | p99: {:>5} | max: {:>6} {}", name, s.min, s.p50, s.p99, s.max, unit);
 #else
   std::cout << std::setw(32) << name
             << " | min: " << std::setw(4) << s.min
@@ -74,7 +117,8 @@ void print_stats(std::string_view name, const Stats& s, std::string_view unit){
 int main(){
   int temp = 0;
   for(int i{ 0 }; i < 50'000'000; ++i){
-    bench::do_not_optimize(temp += i);
+    temp += i;
+    bench::do_not_optimize(temp);
   }
 
   pin_thread(0);
@@ -102,5 +146,22 @@ int main(){
 
   unsigned int cores_available = std::thread::hardware_concurrency();
 
+#if defined(__cpp_lib_print)
+  std::println("thread migration latency across {} cores", cores_available);
+#else
+  std::cout << "thread migration latency across " << cores_available << " cores \n";
+#endif
 
+  if(cores_available > 1){
+    auto stats = measure_migration_latency(cores_available);
+    print_stats("Pseduorandom core hop", stats, bench::SerializedRdtscClock<true>::unit);
+  }else{
+#if defined(__cpp_lib_print)
+    std::println("skipped, hardware_concurrency() returned a number <= 1");
+#else
+    std::cout << "skipped, hardware_concurrency() returned a number <= 1\n";
+#endif
+  }
+
+return 0;
 }
