@@ -13,6 +13,16 @@
 
 namespace bench{
 
+template<typename T>
+inline void do_not_optimize(const T& value) noexcept{
+  asm volatile("" : : "r,m"(value) : "memory");
+}
+
+template<typename T>
+inline void do_not_optimize(T& value) noexcept{
+  asm volatile("" : "+r,m"(value) : "memory");
+}
+
 struct Timer{
   using Clock = std::chrono::steady_clock;
 
