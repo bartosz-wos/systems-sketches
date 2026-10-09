@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <string_view>
+#include <type_traits>
 
 #if __has_include(<print>)
 #  include <print>
@@ -14,13 +15,12 @@
 namespace bench{
 
 template<typename T>
-inline void do_not_optimize(const T& value) noexcept{
-  asm volatile("" : : "r,m"(value) : "memory");
-}
-
-template<typename T>
-inline void do_not_optimize(T& value) noexcept{
-  asm volatile("" : "+r,m"(value) : : "memory");
+inline void do_not_optimize(T&& value) noexcept{
+  if constexpr(std::is_const_v<std::remove_reference_t<T>>){
+    asm volatile("" : : "r,m"(value) : "memory");
+  }else{
+    asm volatile("" : "+r,m"(value) : : "memory");
+  }
 }
 
 struct Timer{
