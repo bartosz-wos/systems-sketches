@@ -53,5 +53,27 @@ void pin_thread(unsigned int core_id){
 
 
 int main(){
+  int temp = 0;
+  for(int i{ 0 }; i < 50'000'000; ++i){
+    bench::do_not_optimize(temp += i);
+  }
+
+  pin_thread(0);
+
+  auto stat_chrono = measure_clocks_overhead<bench::ChronoClock>();
+  print_stats("ChronoClock", stat_chrono);
+
+  auto stat_rdtsc = measure_clocks_overhead<bench::RdtscClock>();
+  print_stats("raw RdtscClock", stat_rdtsc);
+
+  auto stat_rdtscp = measure_clocks_overhead<bench::RdtscpClock>();
+  print_stats("raw RdtscpClock", stat_rdtscp);
+
+  auto stat_ser = measure_clocks_overhead<bench::SerializedRdtscClock<false>>();
+  print_stats("SerializedRdtscClock without core tracking", stat_ser);
+
+  auto stat_ser_tracked = measure_clocks_overhead<bench::SerializedRdtscClock<true>>();
+  print_stats("SerializedRdtscClock with core tracking", stat_ser_tracked);
+
 
 }
