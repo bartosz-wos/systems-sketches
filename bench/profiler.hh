@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <chrono>
 #include <string_view>
 #include <type_traits>
@@ -23,6 +24,14 @@ inline void do_not_optimize(T&& value) noexcept{
     asm volatile("" : "+r,m"(value) : : "memory");
   }
 }
+
+template<typename C>
+concept Clock = requires(typename C::time_point t){
+  typename C::time_point;
+  { C::unit }           -> std::convertible_to<std::string_view>;
+  { C::now() }          -> std::same_as<typename C::time_point>;
+  { C::elapsed(t, t) }  -> std::convertible_to<uint64_t>;
+};
 
 struct ChronoClock{
   using time_point = std::chrono::steady_clock::time_point;
@@ -66,24 +75,24 @@ struct RdtscpClock{
   }
 };
 
-template<typename Clock = RdtscClock>
+template<Clock C = RdtscClock>
 struct Timer{
   std::string_view label;
-  typename Clock::time_point start;
+  typename C::time_point start;
 
   explicit Timer(std::string_view label = "Scope") noexcept
     : label{ label }
-    , start{ Clock::now() }
+    , start{ C::now() }
     {}
 
   ~Timer(){
-    auto end = Clock::now();
-    auto diff = Clock::elapsed(start, end);
+    auto end = C::now();
+    auto diff = C::elapsed(start, end);
 
     #if defined(__cpp_lib_print)
-      std::println("[{}] Elapsed: {} {}", label, diff, Clock::unit);
+      std::println("[{}] Elapsed: {} {}", label, diff, C::unit);
     #else
-      std::cout << "[" << label << "] Elapsed: " << diff << " " << Clock::unit << '\n';
+      std::cout << "[" << label << "] Elapsed: " << diff << " " << C::unit << '\n';
     #endif
   }
 
