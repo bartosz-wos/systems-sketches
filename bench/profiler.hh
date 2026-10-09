@@ -46,6 +46,10 @@ struct RdtscClock{
   static time_point now() noexcept{
     return __rdtsc();
   }
+
+  static uint64_t elapsed(time_point start, time_point end) noexcept{
+    return end - start;
+  }
 };
 
 struct RdtscpClock{
@@ -62,11 +66,10 @@ struct RdtscpClock{
   }
 };
 
+template<typename Clock = RdtscClock>
 struct Timer{
-  using Clock = std::chrono::steady_clock;
-
   std::string_view label;
-  Clock::time_point start;
+  typename Clock::time_point start;
 
   explicit Timer(std::string_view label = "Scope") noexcept
     : label{ label }
@@ -75,12 +78,12 @@ struct Timer{
 
   ~Timer(){
     auto end = Clock::now();
-    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    auto diff = Clock::elapsed(start, end);
 
     #if defined(__cpp_lib_print)
-      std::println("[{}] Elapsed: {} ns", label, ns);
+      std::println("[{}] Elapsed: {} {}", label, diff, Clock::unit);
     #else
-      std::cout << "[" << label << "] Elapsed: " << ns << " ns\n";
+      std::cout << "[" << label << "] Elapsed: " << diff << " " << Clock::unit << '\n';
     #endif
   }
 
@@ -88,5 +91,8 @@ struct Timer{
   Timer& operator=(const Timer&) = delete;
 
 };
+
+using CycleTimer  = Timer<RdtscClock>;
+using ChronoTimer = Timer<ChronoClock>;
 
 } // namespace bench
