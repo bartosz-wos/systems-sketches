@@ -16,8 +16,8 @@ namespace bench{
 struct Timer{
   using Clock = std::chrono::steady_clock;
 
-  Clock::time_point start;
   std::string_view label;
+  Clock::time_point start;
 
   explicit Timer(std::string_view label = "Scope") noexcept
     : label{ label }
