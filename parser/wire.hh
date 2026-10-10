@@ -46,4 +46,30 @@ inline void write_big_endian(std::byte* dst, T val) noexcept{
   std::memcpy(dst, &val, sizeof(T));
 }
 
-}
+} // parser::wire
+
+
+namespace parser::protocol{
+
+enum class MessageType : uint8_t{
+  NewOrder = 0x01,
+  CancelOrder = 0x02
+};
+
+struct header_view{
+  static constexpr std::size_t SIZE = 4;
+  const std::byte* ptr;
+
+  [[nodiscard]]
+  uint16_t len() const noexcept{
+    return parser::wire::read_big_endian<uint16_t>(ptr);
+  }
+
+  [[nodiscard]]
+  MessageType type() const noexcept{
+    return static_cast<MessageType>(ptr[2]);
+  }
+
+};
+
+} // parser::protocol
