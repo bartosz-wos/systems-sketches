@@ -1,5 +1,11 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <type_traits>
+#include <bit>
+
 namespace parser::wire{
 
 template<typename T>
