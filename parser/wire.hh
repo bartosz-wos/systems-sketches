@@ -3,10 +3,9 @@
 namespace parser::wire{
 
 template<typename T>
+requires (std::is_trivially_copyable_v<T>)
 [[nodiscard]]
 inline T read_big_endian(const std::byte* src) noexcept{
-  static_assert(std::is_trivially_copyable_v<T>, "T has to be trivially copyable");
-
   T val;
   std::memcpy(&val, src, sizeof(T));
 
@@ -26,9 +25,8 @@ inline T read_big_endian(const std::byte* src) noexcept{
 }
 
 template<typename T>
+requires (std::is_trivially_copyable_v<T>)
 inline void write_big_endian(std::byte* dst, T val) noexcept{
-  static_assert(std::is_trivially_copyable_v<T>, "T has to be trivially copyable");
-
   if constexpr(std::endian::native == std::endian::little){
     if constexpr(sizeof(T) == 2){
       val = static_cast<T>(__builtin_bswap16(static_cast<uint16_t>(val)));
