@@ -3,6 +3,7 @@
 #include <array>
 #include <cassert>
 #include <iostream>
+#include <functional>
 
 inline bool test_not_aligned_8_bytes(){
   using namespace parser;
@@ -26,15 +27,21 @@ inline bool test_header_view(){
   protocol::header_view view{ buffer.data() };
   bool ret{ true };
 
-  ret |= (view.len() == 24);
-  ret |= (view.type() == protocol::MessageType::NewOrder);
+  ret &= (view.len() == 24);
+  ret &= (view.type() == protocol::MessageType::NewOrder);
 
   return ret;
 }
 
 int main(){
-  assert(test_not_aligned_8_bytes());
-  assert(test_header_view());
+  bool (*tests[])(void) = {
+    test_not_aligned_8_bytes,
+    test_header_view
+  };
+
+  for(const auto& test : tests){
+    assert(std::invoke(test));
+  }
 
   std::cout << "tests passed!\n";
   return 0;
