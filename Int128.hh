@@ -1,5 +1,9 @@
 #pragma once
 
+#include <concepts>
+#include <cstdint>
+#include <span>
+
 struct Int128 {
 
     uint64_t words[2]{0, 0};
@@ -8,6 +12,18 @@ struct Int128 {
     constexpr Int128(uint64_t low, uint64_t high)
     : words{low, high}
     {}
+
+    template<std::integral T>
+    constexpr Int128(T val) noexcept{
+        if constexpr(std::is_signed_v<T>){
+            const auto v = static_cast<int64_t>(val);
+            words[0] = static_cast<uint64_t>(v);
+            words[1] = v < 0 ? ~0ULL : 0ULL;
+        }else{
+            words[0] = static_cast<uint64_t>(val);
+            words[1] = 0ULL;
+        }
+    }
 
     static constexpr Int128 product(const int64_t a, const int64_t b) {
         const uint64_t u = static_cast<uint64_t>(a);
@@ -65,6 +81,14 @@ struct Int128 {
 
     constexpr explicit operator bool() const noexcept{
         return (words[0] | words[1]) != 0;
+    }
+
+    constexpr explicit operator int64_t() const noexcept{
+        return static_cast<int64_t>(words[0]);
+    }
+
+    constexpr explicit operator uint64_t() const noexcept{
+        return words[0];
     }
 
     std::span<const std::byte, 16> asBytes() const {
