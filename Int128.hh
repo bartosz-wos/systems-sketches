@@ -63,6 +63,10 @@ struct Int128 {
         words[1] = new_high;
     }
 
+    constexpr explicit operator bool() const noexcept{
+        return (words[0] | words[1]) != 0;
+    }
+
     std::span<const std::byte, 16> asBytes() const {
         return std::as_bytes(std::span<const uint64_t, 2>(words));
     }
