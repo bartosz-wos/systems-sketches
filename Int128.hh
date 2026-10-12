@@ -79,6 +79,36 @@ struct Int128 {
         words[1] = new_high;
     }
 
+    constexpr Int128 operator+() const noexcept{
+        return *this;
+    }
+
+    constexpr Int128 operator-() const noexcept{
+        Int128 zero{0, 0};
+        zero.subtract(*this);
+        return zero;
+    }
+
+    constexpr Int128& operator+=(const Int128& other) noexcept{
+        add(other);
+        return *this;
+    }
+
+    constexpr friend Int128 operator+(Int128 l, const Int128& r) noexcept{
+        l += r;
+        return l;
+    }
+
+    constexpr Int128& operator-=(const Int128& other) noexcept{
+        subtract(other);
+        return *this;
+    }
+
+    constexpr friend Int128 operator-(Int128 l, const Int128& r) noexcept{
+        l -= r;
+        return l;
+    }
+
     constexpr explicit operator bool() const noexcept{
         return (words[0] | words[1]) != 0;
     }
