@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <utility>
 
 struct Header {
     std::size_t size;
@@ -66,6 +67,32 @@ public:
         Header* block = to_header(buffer_);
         block->size = total_free_;
         block->free = 1;
+    }
+
+    explicit FirstFitAllocator(char* buffer, std::size_t size) noexcept
+    : FirstFitAllocator(reinterpret_cast<std::byte*>(buffer), size)
+    {}
+
+    ~FirstFitAllocator() = default;
+
+    FirstFitAllocator(const FirstFitAllocator&) = delete;
+    FirstFitAllocator& operator=(const FirstFitAllocator&) = delete;
+
+    FirstFitAllocator(FirstFitAllocator&& other) noexcept
+    : buffer_{ std::exchange(other.buffer_, nullptr) }
+    , total_size_{ std::exchange(other.total_size_, 0) }
+    , total_free_{ std::exchange(other.total_free_, 0) }
+    , free_block_count_{ std::exchange(other.free_block_count_, 0) }
+    {}
+
+    FirstFitAllocator& operator=(FirstFitAllocator&& other) noexcept{
+      if(this != &other){
+        buffer_ = std::exchange(other.buffer_, nullptr);
+        total_size_ = std:exchange(other.total_size_, 0);
+        total_free_ = std::exchange(other.total_free_, 0);
+        free_block_count_ = std::exchange(other.free_block_count_, 0);
+      }
+      return *this;
     }
 
     void* allocate(std::size_t n) {
