@@ -95,8 +95,39 @@ public:
       return *this;
     }
 
-    void* allocate(std::size_t n) {
-        return nullptr;
+    [[nodiscard]]
+    void* allocate(std::size_t n) noexcept{
+      std::byte* ptr = buffer_;
+      const std::byte* end = buffer_ + total_size_;
+
+      while(ptr < end){
+        Header* cur = to_header(ptr);
+
+        if(cur->free && cur->size >= n){
+          const std::size_t block_size = cur->size;
+
+          if(block_size - n > HEADER_SIZE){
+            cur->size = n;
+            cur->free = 0;
+
+            Header* new_block = next_block(cur);
+            new_block->size = (block_size - n) - HEADER_SIZE;
+            new_block->free = 1;
+
+            total_free_ -= (n + HEADER_SIZE);
+          }else{
+            cur->free = 0;
+            --free_block_count_;
+            total_free_ -= block_size;
+          }
+
+          return payload(cur);
+        }
+
+        ptr = to_bytes(next_block(cur));
+      }
+
+      return nullptr;
     }
 
     void deallocate(void* p) {
