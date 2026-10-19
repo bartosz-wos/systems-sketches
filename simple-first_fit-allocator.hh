@@ -102,14 +102,27 @@ public:
     void deallocate(void* p) {
     }
 
-    std::size_t largest_free_block() const {
+    std::size_t largest_free_block() const noexcept{
+      std::size_t mx_block = 0;
+      const std::byte* ptr = buffer_;
+      const std::byte* end = buffer_ + total_size_;
+
+      while(ptr < end){
+        const Header* cur = to_header(ptr);
+        if(cur->free && cur->size > mx_block){
+          mx_block = cur->size;
+        }
+        ptr = to_bytes(next_block(cur));
+      }
+
+      return mx_block;
     }
 
-    int free_block_count() const {
+    int free_block_count() const noexcept{
         return free_block_count_;
     }
 
-    std::size_t total_free() const {
+    std::size_t total_free() const noexcept{
         return total_free_;
     }
 };
