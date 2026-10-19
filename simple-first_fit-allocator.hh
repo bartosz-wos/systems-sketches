@@ -61,12 +61,20 @@ public:
     explicit FirstFitAllocator(std::byte* buffer, std::size_t size) noexcept
     : buffer_{ buffer }
     , total_size_{ size }
-    , total_free_{ size - HEADER_SIZE }
+    , total_free_{ size < HEADER_SIZE ? 0 : size - HEADER_SIZE }
     , free_block_count_{ 1 }
     {
-        Header* block = to_header(buffer_);
-        block->size = total_free_;
-        block->free = 1;
+      if(!buffer || size < HEADER_SIZE) [[unlikely]]{
+        buffer_ = nullptr;
+        total_size_ = 0;
+        total_free_ = 0;
+        free_block_count_ = 0;
+        return;
+      }
+
+      Header* block = to_header(buffer_);
+      block->size = total_free_;
+      block->free = 1;
     }
 
     explicit FirstFitAllocator(char* buffer, std::size_t size) noexcept
@@ -88,7 +96,7 @@ public:
     FirstFitAllocator& operator=(FirstFitAllocator&& other) noexcept{
       if(this != &other){
         buffer_ = std::exchange(other.buffer_, nullptr);
-        total_size_ = std:exchange(other.total_size_, 0);
+        total_size_ = std::exchange(other.total_size_, 0);
         total_free_ = std::exchange(other.total_free_, 0);
         free_block_count_ = std::exchange(other.free_block_count_, 0);
       }
