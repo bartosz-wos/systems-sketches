@@ -115,32 +115,78 @@ public:
     }
 
     [[nodiscard]]
-    void* allocate(std::size_t n) noexcept{
+    void* allocate(std::size_t n, std::size_t alignment = ALIGNMENT) noexcept{
+      if(alignment == 0 || !std::has_single_bit(alignment)) [[unlikely]]{
+        return nullptr;
+      }
+
+      alignment = std::max(alignment, ALIGNMENT);
+      const std::size_t aligned_n = align_up(n == 0 ? 1 : n, ALIGNMENT);
+
       std::byte* ptr = buffer_;
       const std::byte* end = buffer_ + total_size_;
 
       while(ptr < end){
         Header* cur = to_header(ptr);
 
-        if(cur->free && cur->size >= n){
-          const std::size_t block_size = cur->size;
+        if(cur->free){
+          const std::size_t tot_block_size = HEADER_SIZE + cur->size;
+          const auto base_addr = reinterpret_cast<std::uintptr_t>(ptr);
+          const auto raw_payload = base_addr + HEADER_SIZE;
+          auto aligned_addr = align_up(raw_payload, alignment);
 
-          if(block_size - n > HEADER_SIZE){
-            cur->size = n;
-            cur->free = 0;
-
-            Header* new_block = next_block(cur);
-            new_block->size = (block_size - n) - HEADER_SIZE;
-            new_block->free = 1;
-
-            total_free_ -= (n + HEADER_SIZE);
-          }else{
-            cur->free = 0;
-            --free_block_count_;
-            total_free_ -= block_size;
+          if(aligned_addr - HEADER_SIZE != base_addr){
+            constexpr std::size_t min_lead = HEADER_SIZE + ALIGNMENT;
+            if((aligned_addr - HEADER_SIZE) - base_addr < min_lead){
+              aligned_addr = align_up(base_addr + min_lead + HEADER_SIZE, alignment);
+            }
           }
 
-          return payload(cur);
+          const std::size_t lead_gap = aligned_addr - HEADER_SIZE - base_addr;
+          const std::size_t need_bytes = lead_gap + HEADER_SIZE + aligned_n;
+
+          if(tot_block_size >= need_bytes){
+            Header* header = nullptr;
+
+            if(lead_gap > 0){
+              cur->size = lead_gap - HEADER_SIZE;
+              cur->free = 1;
+
+              header = to_header(ptr + lead_gap);
+            }else{
+              header = cur;
+            }
+
+            const std::size_t capacity = tot_block_size - lead_gap - HEADER_SIZE;
+            const std::size_t trail = capacity - aligned_n;
+
+            if(trail >= HEADER_SIZE + ALIGNMENT){
+              header->size = aligned_n;
+              header->free = 0;
+
+              Header* next = next_block(header);
+              next->size = trail - HEADER_SIZE;
+              next->free = 1;
+
+              if(lead_gap > 0){
+                ++free_block_count_;
+                total_free_ -= (aligned_n + 2 * HEADER_SIZE);
+              }else{
+                total_free_ -= (aligned_n + HEADER_SIZE);
+              }
+            }else{
+              header->size = capacity;
+              header->free = 0;
+              if(lead_gap > 0){
+                total_free_ -= (capacity + HEADER_SIZE);
+              }else{
+                --free_block_count_;
+                total_free_ -= capacity;
+              }
+            }
+
+            return payload(header);
+          }
         }
 
         ptr = to_bytes(next_block(cur));
