@@ -4,6 +4,9 @@
 #include <utility>
 #include <cstdint>
 #include <concepts>
+#include <bit>
+#include <algorithm>
+#include <memory_resource>
 
 struct alignas(std::max_align_t) Header {
     std::size_t size;
@@ -13,7 +16,7 @@ struct alignas(std::max_align_t) Header {
 static constexpr std::size_t ALIGNMENT = alignof(std::max_align_t);
 static constexpr std::size_t HEADER_SIZE = sizeof(Header);
 
-class FirstFitAllocator {
+class FirstFitAllocator : public std::pmr::memory_resource {
 private:
     std::byte* buffer_{ nullptr };
     std::size_t total_size_{ 0 };
@@ -64,6 +67,24 @@ private:
     [[nodiscard]]
     static const Header* next_block(const Header* header) noexcept{
         return to_header(to_bytes(header) + HEADER_SIZE + header->size);
+    }
+
+protected:
+    void* do_allocate(std::size_t size, std::size_t alignment) override{
+      void* p = allocate(size, alignment);
+      if(!p){
+        throw std::bad_alloc();
+      }
+
+      return p;
+    }
+
+    void do_deallocate(void* p, std::size_t, std::size_t) override{
+      deallocate(p);
+    }
+
+    bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override{
+      return this == &other;
     }
 
 public:
