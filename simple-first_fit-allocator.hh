@@ -178,6 +178,7 @@ public:
       }
     }
 
+    [[nodiscard]]
     std::size_t largest_free_block() const noexcept{
       std::size_t mx_block = 0;
       const std::byte* ptr = buffer_;
@@ -194,10 +195,12 @@ public:
       return mx_block;
     }
 
+    [[nodiscard]]
     int free_block_count() const noexcept{
         return free_block_count_;
     }
 
+    [[nodiscard]]
     std::size_t total_free() const noexcept{
         return total_free_;
     }
