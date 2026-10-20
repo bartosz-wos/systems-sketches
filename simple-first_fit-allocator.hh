@@ -138,7 +138,44 @@ public:
       return nullptr;
     }
 
-    void deallocate(void* p) {
+    void deallocate(void* p) noexcept{
+      if(!p){
+        return;
+      }
+
+      Header* header = from_payload(p);
+      Header* prev = nullptr;
+      std::byte* ptr = buffer_;
+      const std::byte* end = buffer_ + total_size_;
+
+      while(ptr < end){
+        Header* cur = to_header(ptr);
+        if(cur == header){
+          break;
+        }
+        prev = cur;
+        ptr = to_bytes(next_block(cur));
+      }
+
+      header->free = 1;
+      ++free_block_count_;
+      total_free_ += header->size;
+
+      std::byte* next = to_bytes(next_block(header));
+      if(next < end){
+        Header* next_header = to_bytes(next_block(next));
+        if(next_header->free){
+          header->size += HEADER_SIZE + next_header->size;
+          --free_block_count_;
+          total_free_ += HEADER_SIZE;
+        }
+      }
+
+      if(prev != nullptr && prev->free){
+        prev->size += HEADER_SIZE + header->size;
+        --free_block_count_;
+        total_free_ += HEADER_SIZE;
+      }
     }
 
     std::size_t largest_free_block() const noexcept{
