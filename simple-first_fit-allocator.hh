@@ -2,6 +2,8 @@
 
 #include <cstddef>
 #include <utility>
+#include <cstdint>
+#include <concepts>
 
 struct alignas(std::max_align_t) Header {
     std::size_t size;
@@ -18,14 +20,10 @@ private:
     std::size_t total_free_{ 0 };
     int free_block_count_{ 0 };
 
+    template<std::integral T>
     [[nodiscard]]
-    static constexpr std::size_t align_up(std::size_t n, std::size_t alignment) noexcept{
-      return (n + alignment - 1) & ~(alignment - 1);
-    }
-
-    [[nodiscard]]
-    static constexpr std::uintptr_t align_up(std::uintptr_t n, std::size_t alignment) noexcept{
-      return (n + alignment - 1) & ~static_cast<std::uintptr_t>(alignment - 1);
+    static constexpr T align_up(T n, std::size_t alignment) noexcept{
+      return static_cast<T>((n + alignment - 1) & ~static_cast<T>(alignment - 1));
     }
 
     [[nodiscard]]
