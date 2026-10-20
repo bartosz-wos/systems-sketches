@@ -69,19 +69,19 @@ private:
     }
 
 public:
-    explicit FirstFitAllocator(std::byte* buffer, std::size_t size) noexcept
-    : buffer_{ buffer }
-    , total_size_{ size }
-    , total_free_{ size < HEADER_SIZE ? 0 : size - HEADER_SIZE }
-    , free_block_count_{ 1 }
-    {
-      if(!buffer || size < HEADER_SIZE) [[unlikely]]{
-        buffer_ = nullptr;
-        total_size_ = 0;
-        total_free_ = 0;
-        free_block_count_ = 0;
+    explicit FirstFitAllocator(std::byte* buffer, std::size_t size) noexcept{
+      auto addr = reinterpret_cast<std::uintptr_t>(buffer);
+      auto aligned_addr = align_up(addr, ALIGNMENT);
+      auto diff = aligned_addr - addr;
+
+      if(!buffer || size <= diff + HEADER_SIZE) [[unlikely]]{
         return;
       }
+
+      buffer_ = buffer + diff;
+      total_size_ = (size - diff) & ~(ALIGNMENT - 1);
+      total_free_ = total_size_ - HEADER_SIZE;
+      free_block_count_ = 1;
 
       Header* block = to_header(buffer_);
       block->size = total_free_;
