@@ -3,11 +3,12 @@
 #include <cstddef>
 #include <utility>
 
-struct Header {
+struct alignas(std::max_align_t) Header {
     std::size_t size;
     std::size_t free;
 };
 
+static constexpr std::size_t ALIGNMENT = alignof(std::max_align_t);
 static constexpr std::size_t HEADER_SIZE = sizeof(Header);
 
 class FirstFitAllocator {
@@ -16,6 +17,16 @@ private:
     std::size_t total_size_{ 0 };
     std::size_t total_free_{ 0 };
     int free_block_count_{ 0 };
+
+    [[nodiscard]]
+    static constexpr std::size_t align_up(std::size_t n, std::size_t alignment) noexcept{
+      return (n + alignment - 1) & ~(alignment - 1);
+    }
+
+    [[nodiscard]]
+    static constexpr std::uintptr_t align_up(std::uintptr_t n, std::size_t alignment) noexcept{
+      return (n + alignment - 1) & ~static_cast<std::uintptr_t>(alignment - 1);
+    }
 
     [[nodiscard]]
     static Header* to_header(std::byte* ptr) noexcept{
