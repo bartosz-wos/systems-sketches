@@ -163,7 +163,7 @@ public:
 
       std::byte* next = to_bytes(next_block(header));
       if(next < end){
-        Header* next_header = to_bytes(next_block(next));
+        Header* next_header = to_header(next);
         if(next_header->free){
           header->size += HEADER_SIZE + next_header->size;
           --free_block_count_;
