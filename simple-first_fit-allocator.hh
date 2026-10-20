@@ -233,6 +233,10 @@ public:
         ptr = to_bytes(next_block(cur));
       }
 
+      if(ptr >= end) [[unlikely]]{
+        return;
+      }
+
       header->free = 1;
       ++free_block_count_;
       total_free_ += header->size;
