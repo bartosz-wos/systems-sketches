@@ -1,5 +1,13 @@
 #pragma once
 
+#include <vector>
+#include <queue>
+#include <thread>
+#include <condition_variable>
+#include <future>
+#include <type_traits>
+#include <stdexcept>
+
 class ThreadPool{
 private:
   std::vector<std::thread> workers_;
@@ -57,5 +65,42 @@ public:
   ThreadPool& operator=(const ThreadPool&) = delete;
   ThreadPool(ThreadPool&&) = delete;
   ThreadPool& operator=(ThreadPool&&) = delete;
+
+  template<typename F, typename... Args>
+  auto push(F&& f, Args&&... args){
+    using return_type = std::invoke_result_t<F, Args...>;
+
+    auto promise = std::make_shared<std::promise<return_type>>();
+    std::future<return_type> future = promise->get_future();
+
+    auto task = [ promise
+                , func = std::decay_t<F>(std::forward<F>(f))
+                , args_list = std::make_tuple(std::forward<Args>(args)...)
+                ]
+                () mutable{
+                  try{
+                    if constexpr(std::is_void_v<return_type>){
+                      std::apply(std::move(func), std::move(args_list));
+                      promise->set_value();
+                    }else{
+                      promise->set_value(std::apply(std::move(func), std::move(args_list)));
+                    }
+                  }catch(...){
+                    promise->set_exception(std::current_exception());
+                  }
+                };
+
+    {
+      std::unique_lock<std::mutex> lock{mutex_};
+      if(stop_){
+        throw std::runtime_error("Thread pool stopped, but there was an attempt to push a task");
+      }
+
+      tasks_.emplace(std::move(task));
+    }
+
+    cv_.notify_one();
+    return future;
+  }
 
 };
