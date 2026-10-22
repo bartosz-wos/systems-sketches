@@ -7,13 +7,14 @@
 #include <future>
 #include <type_traits>
 #include <stdexcept>
+#include <concepts>
 
 class ThreadPool{
 private:
-  std::vector<std::thread> workers_;
-  std::queue<std::function<void()>> tasks_;
-  std::mutex mutex_;
-  std::condition_variable cv_;
+  std::vector<std::thread> workers_{};
+  std::queue<std::function<void()>> tasks_{};
+  std::mutex mutex_{};
+  std::condition_variable cv_{};
   bool stop_{ false };
 
 public:
@@ -67,6 +68,7 @@ public:
   ThreadPool& operator=(ThreadPool&&) = delete;
 
   template<typename F, typename... Args>
+  requires std::invocable<std::decay_t<F>, std::decay_t<Args>...>
   auto push(F&& f, Args&&... args){
     using return_type = std::invoke_result_t<F, Args...>;
 
