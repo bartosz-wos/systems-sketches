@@ -39,5 +39,18 @@ public:
     }
   }
 
+  ~ThreadPool(){
+    {
+      std::unique_lock<std::mutex> lock{mutex_};
+      stop_ = true;
+    }
+
+    cv_.notify_all();
+    for(std::thread& t : workers_){
+      if(t.joinable()){
+        t.join();
+      }
+    }
+  }
 
 };
