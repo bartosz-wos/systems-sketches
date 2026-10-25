@@ -92,5 +92,14 @@ public:
     return nullptr;
   }
 
+  [[nodiscard]]
+  const Value* find(const Key& key) const noexcept{
+    return const_cast<LinearProbingHashMap*>(this)->find(key);
+  }
+
+  [[nodiscard]]
+  bool contains(const Key& key) const noexcept{
+    return find(key) != nullptr;
+  }
 
 };
