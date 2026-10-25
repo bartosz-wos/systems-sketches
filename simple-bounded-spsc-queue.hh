@@ -22,11 +22,31 @@ private:
 
   [[nodiscard]]
   T* slot(std::size_t idx) noexcept{
-    return std::launder(reinterpret_cast<T*>(&buffer[index & INDEX_MASK]));
+    return std::launder(reinterpret_cast<T*>(&buffer[(index & INDEX_MASK) * sizeof(T)]));
   }
 
   [[nodiscard]]
   const T* slot(std::size_t idx) const noexcept{
-    return std::launder(reinterpret_cast<const T*>(&buffer[index & INDEX_MASK]));
+    return std::launder(reinterpret_cast<const T*>(&buffer[(index & INDEX_MASK) * sizeof(T)]));
   }
+
+public:
+  constexpr SPSCQueue() noexcept = default;
+
+  ~SPSCQueue(){
+    if constexpr(!std::is_trivially_destructible_v<T>){
+      std::size_t tail = tail_.load(std::memory_order_relaxed);
+      const std::size_t head = head_.load(std::memory_order_relaxed);
+
+      while(tail != head){
+        std::destroy_at(slot(tail));
+        ++tail;
+      }
+    }
+  }
+
+  SPSCQueue(const SPSCQueue&) = delete;
+  SPSCQueue& operator=(const SPSCQueue&) = delete;
+  SPSCQueue(SPSCQueue&&) = delete;
+  SPSCQueue& operator=(SPSCQueue&&) = delete;
 };
