@@ -1,5 +1,10 @@
 #pragma once
 
+#include <atomic>
+#include <new>
+#include <type_traits>
+#include <cstddef>
+
 #if defined(__cpp_lib_hardware_interference_size)
   using std::hardware_destructive_interference_size;
 #else
@@ -10,7 +15,7 @@
 template<typename T, std::size_t Capacity>
 class SPSCQueue{
 private:
-  static constexpr INDEX_MASK = Capacity - 1;
+  static constexpr std::size_t INDEX_MASK = Capacity - 1;
 
   alignas(hardware_destructive_interference_size) alignas(T) std::byte buffer_[Capacity * sizeof(T)];
 
@@ -26,18 +31,18 @@ private:
   }
 
   [[nodiscard]]
-  const std::byte* raw_slot(std::size_t index) const noexcept{
+  const std::byte* raw_slot(std::size_t idx) const noexcept{
     return &buffer_[(idx & INDEX_MASK) * sizeof(T)];
   }
 
   [[nodiscard]]
   T* slot(std::size_t idx) noexcept{
-    return std::launder(reinterpret_cast<T*>(&buffer[(index & INDEX_MASK) * sizeof(T)]));
+    return std::launder(reinterpret_cast<T*>(&buffer_[(idx & INDEX_MASK) * sizeof(T)]));
   }
 
   [[nodiscard]]
   const T* slot(std::size_t idx) const noexcept{
-    return std::launder(reinterpret_cast<const T*>(&buffer[(index & INDEX_MASK) * sizeof(T)]));
+    return std::launder(reinterpret_cast<const T*>(&buffer_[(idx & INDEX_MASK) * sizeof(T)]));
   }
 
 public:
@@ -103,20 +108,6 @@ public:
 
   [[nodiscard]]
   T* front() noexcept{
-    const std::size_t tail = tail_.load(std::memory_order_relaxed);
-
-    if(tail == cached_head_){
-      cached_head_ = head_.load(std::memory_order_acquire);
-      if(tail == cached_head_){
-        return nullptr;
-      }
-    }
-
-    return slot(tail);
-  }
-
-  [[nodiscard]]
-  const T* front() const noexcept{
     const std::size_t tail = tail_.load(std::memory_order_relaxed);
 
     if(tail == cached_head_){
