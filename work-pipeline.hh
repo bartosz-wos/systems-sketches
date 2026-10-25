@@ -7,6 +7,9 @@ namespace pipe{
 
 namespace line{
 
+template<typename Current, typename... Fs>
+struct pipeline_types_helper;
+
 // base case, last function
 template<typename Current>
 struct pipeline_types_helper{
@@ -24,15 +27,17 @@ struct pipeline_types_helper<Current, F, Later...>{
 
   using next_type = std::remove_cvref_t<raw_next_type>;
 
-  using type = pipeline_types_helper(std::tuple_cat(
+  using type = decltype(std::tuple_cat(
       std::declval<std::tuple<Current>>(),
       std::declval<typename pipeline_types_helper<next_type, Later...>::type>()
   ));
-}
+};
+
+} //namespace line
+
 
 template<typename T0, typename... Fs>
 using pipeline_types_t = typename line::pipeline_types_helper<std::remove_cvref_t<T0>, Fs...>::type;
 
-} //namespace line
 
 } // namespace pipe
