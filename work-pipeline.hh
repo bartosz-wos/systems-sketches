@@ -94,9 +94,9 @@ private:
 
     auto& input_queue = std::get<Index>(queues_);
     auto& output_queue = std::get<Index + 1>(queues_);
-    auto& current_function = std::get<I>(stages_);
+    auto& current_function = std::get<Index>(stages_);
 
-    while(!st.stop_requested){
+    while(!st.stop_requested()){
       curr_stage_input_type item;
 
       if(input_queue.try_pop(item)){
