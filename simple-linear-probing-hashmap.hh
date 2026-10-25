@@ -32,4 +32,13 @@ private:
   }
 
 public:
+  explicit LinearProbingHashMap(std::size_t init_capacity = 16, float load_factor = 0.5f, const Hash& hash = Hash{})
+  : table_( std::max<std::size_t>(init_capacity, 8) )
+  , load_factor_{ load_factor }
+  , hash_{ hash }
+  {}
+
+  ~LinearProbingHashMap() = default;
+
+
 };
