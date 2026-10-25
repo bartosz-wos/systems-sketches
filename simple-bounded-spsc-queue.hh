@@ -83,4 +83,50 @@ public:
   bool try_push(T&& value){
     return try_emplace(std::move(value));
   }
+
+  bool try_pop(T& value) noexcept(std::is_nothrow_move_assignable_v<T>){
+    const std::size_t tail = tail_.load(std::memory_order_relaxed);
+
+    if(tail == cached_head_){
+      cached_head_ = head_.load(std::memory_order_acquire);
+      if(tail == cached_head_){
+        return false;
+      }
+    }
+
+    T* const item = slot(tail);
+    value = std::move(*item);
+    std::destroy_at(item);
+    tail_.store(tail + 1, std::memory_order_release);
+    return true;
+  }
+
+  [[nodiscard]]
+  T* front() noexcept{
+    const std::size_t tail = tail_.load(std::memory_order_relaxed);
+
+    if(tail == cached_head_){
+      cached_head_ = head_.load(std::memory_order_acquire);
+      if(tail == cached_head_){
+        return nullptr;
+      }
+    }
+
+    return slot(tail);
+  }
+
+  [[nodiscard]]
+  const T* front() const noexcept{
+    const std::size_t tail = tail_.load(std::memory_order_relaxed);
+
+    if(tail == cached_head_){
+      cached_head_ = head_.load(std::memory_order_acquire);
+      if(tail == cached_head_){
+        return nullptr;
+      }
+    }
+
+    return slot(tail);
+  }
+
 };
