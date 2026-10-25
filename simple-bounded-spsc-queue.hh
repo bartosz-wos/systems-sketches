@@ -73,10 +73,11 @@ public:
 
   template<typename... Args>
   requires std::constructible_from<T, Args...>
-  bool try_emplace(Args&&... args){
+  [[nodiscard]]
+  bool try_emplace(Args&&... args) &{
     const std::size_t head = head_.load(std::memory_order_relaxed);
 
-    if(head - cached_tail_ == Capacity){
+    if(head - cached_tail_ == Capacity) [[unlikely]]{
       cached_tail_ = tail_.load(std::memory_order_acquire);
       if(head - cached_tail_ == Capacity){
         return false;
@@ -88,20 +89,23 @@ public:
     return true;
   }
 
-  bool try_push(const T& value) requires std::copy_constructible<T>{
+  [[nodiscard]]
+  bool try_push(const T& value) & requires std::copy_constructible<T>{
     return try_emplace(value);
   }
 
-  bool try_push(T&& value) requires std::move_constructible<T>{
+  [[nodiscard]]
+  bool try_push(T&& value) & requires std::move_constructible<T>{
     return try_emplace(std::move(value));
   }
 
-  bool try_pop(T& value) noexcept(std::is_nothrow_move_assignable_v<T>) requires std::assignable_from<T&, T&&>{
+  [[nodiscard]]
+  bool try_pop(T& value) & noexcept(std::is_nothrow_move_assignable_v<T>) requires std::assignable_from<T&, T&&>{
     const std::size_t tail = tail_.load(std::memory_order_relaxed);
 
     if(tail == cached_head_){
       cached_head_ = head_.load(std::memory_order_acquire);
-      if(tail == cached_head_){
+      if(tail == cached_head_) [[unlikely]]{
         return false;
       }
     }
@@ -117,7 +121,7 @@ public:
   T* front() noexcept{
     const std::size_t tail = tail_.load(std::memory_order_relaxed);
 
-    if(tail == cached_head_){
+    if(tail == cached_head_) [[unlikely]]{
       cached_head_ = head_.load(std::memory_order_acquire);
       if(tail == cached_head_){
         return nullptr;
@@ -127,7 +131,7 @@ public:
     return slot(tail);
   }
 
-  void pop() noexcept{
+  void pop() & noexcept{
     const std::size_t tail = tail_.load(std::memory_order_relaxed);
     std::destroy_at(slot(tail));
     tail_.store(tail + 1, std::memory_order_release);
