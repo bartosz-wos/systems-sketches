@@ -69,7 +69,7 @@ public:
   }
 
   [[nodiscard]]
-  Value* find(const Key& key) noexcept{
+  const Value* find(const Key& key) const noexcept{
     if(table_.empty()){
       return nullptr;
     }
@@ -93,8 +93,8 @@ public:
   }
 
   [[nodiscard]]
-  const Value* find(const Key& key) const noexcept{
-    return const_cast<LinearProbingHashMap*>(this)->find(key);
+  Value* find(const Key& key) noexcept{
+    return const_cast<Value*>(std::as_const(*this).find(key));
   }
 
   [[nodiscard]]
