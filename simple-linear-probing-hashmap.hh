@@ -41,6 +41,7 @@ public:
   ~LinearProbingHashMap() = default;
 
   template<typename K, typename V>
+  requires std::constructible_from<Key, K> && std::constructible_from<Value, V>
   bool insert(K&& key, V&& value){
     if(table_.empty() || static_cast<float>(size_ + 1) > static_cast<float>(table_.size()) * load_factor_){
       rehash(table_.empty() ? 16 : table_.size() * 2);
