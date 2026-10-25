@@ -129,4 +129,22 @@ public:
     return slot(tail);
   }
 
+  [[nodiscard]]
+  bool empty() const noexcept{
+    return head_.load(std::memory_order_relaxed) == tail_.load(std::memory_order_relaxed);
+  }
+
+  [[nodiscard]]
+  std::size_t size() const noexcept{
+    const std::size_t tail = tail_.load(std::memory_order_relaxed);
+    std::atomic_thread_fence(std::memory_order_acquire);
+    const std::size_t head = head_.load(std::memory_order_relaxed);
+    return (head >= tail) ? head - tail : 0;
+  }
+
+  [[nodiscard]]
+  static constexpr std::size_t capacity() noexcept{
+    return Capacity;
+  }
+
 };
