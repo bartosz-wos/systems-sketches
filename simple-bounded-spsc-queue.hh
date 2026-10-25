@@ -23,7 +23,7 @@ class SPSCQueue{
 private:
   static constexpr std::size_t INDEX_MASK = Capacity - 1;
 
-  alignas(hardware_destructive_interference_size) alignas(T) std::byte buffer_[Capacity * sizeof(T)]{};
+  alignas(hardware_destructive_interference_size) alignas(T) std::byte buffer_[Capacity * sizeof(T)];
 
   alignas(hardware_destructive_interference_size) std::atomic<std::size_t> head_{ 0 };
   std::size_t cached_tail_{ 0 };
