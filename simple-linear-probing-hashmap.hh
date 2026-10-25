@@ -102,4 +102,54 @@ public:
     return find(key) != nullptr;
   }
 
+  bool erase(const Key& key){
+    if(table_.empty()){
+      return false;
+    }
+
+    const std::size_t cap = table_.size();
+    std::size_t idx = hash_index(key, cap);
+    const std::size_t start = idx;
+
+    while(table_[idx].used){
+      if(table_[idx].key == key){
+        break;
+      }
+
+      idx = (idx + 1 >= cap) ? 0 : idx + 1;
+      if(idx == start){
+        break;
+      }
+    }
+
+    if(!table_[idx].used || table_[idx].key != key){
+      return false;
+    }
+
+    table_[idx].used = false;
+    table_[idx].key = Key{};
+    table_[idx].value = Value{};
+    --size_;
+
+    std::size_t nxt = (idx + 1 >= cap) ? 0 : idx + 1;
+    while(table_[nxt].used){
+      std::size_t h = hash_index(table_[nxt].key, cap);
+
+      std::size_t hole_dist = (idx >= h) ? (idx - h) : (idx + cap - h);
+      std::size_t nxt_dist = (nxt >= h) ? (nxt - h) : (nxt + cap - h);
+
+      if(hole_dist < nxt_dist){
+        table_[idx] = std::move(table_[nxt]);
+        table_[nxt].used = false;
+        table_[nxt].key = Key{};
+        table_[nxt].value = Value{};
+        idx = nxt;
+      }
+
+      nxt = (nxt + 1 >= cap) ? 0 : nxt + 1;
+    }
+
+    return true;
+  }
+
 };
