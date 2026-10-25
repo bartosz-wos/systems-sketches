@@ -46,6 +46,10 @@ struct queue_tuple_helper<Cap, std::tuple<Ts...>>{
 
 } //namespace line
 
+// TODO later, implement better PAUSE()
+inline void PAUSE() noexcept{
+  std::this_thread::yield();
+}
 
 template<typename T0, typename... Fs>
 using pipeline_types_t = typename line::pipeline_types_helper<std::remove_cvref_t<T0>, Fs...>::type;
@@ -85,7 +89,31 @@ private:
 
   // Index thread's exec body
   template<std::size_t Index>
-  void run_worker(std::stop_token st);
+  void run_worker(std::stop_token st){
+    using curr_stage_input_type = std::tuple_element_t<Index, all_types>;
+
+    auto& input_queue = std::get<Index>(queues_);
+    auto& output_queue = std::get<Index + 1>(queues_);
+    auto& current_function = std::get<I>(stages_);
+
+    while(!st.stop_requested){
+      curr_stage_input_type item;
+
+      if(input_queue.try_pop(item)){
+        auto next_item = current_function(std::move(item));
+
+        while(!output_queue.try_push(std::move(next_item))){
+          if(st.stop_requested()){
+            return;
+          }
+
+          PAUSE();
+        }
+      }else{
+        PAUSE();
+      }
+    }
+  }
 
   std::tuple<Fs...> stages_;
   pipeline_queues_t<Cap, T0, Fs...> queues_;
