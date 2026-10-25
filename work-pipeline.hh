@@ -77,7 +77,11 @@ public:
 private:
   // helper to spawn threads with compile time indices needed for tuple get
   template<std::size_t... Indices>
-  void start_workers(std::index_sequence<Indices...>);
+  void start_workers(std::index_sequence<Indices...>){
+    (( workers_[Indices] = std::jthread([this](std::stop_token st){
+        this->run_worker<Indices>(st);
+    })), ...);
+  }
 
   // Index thread's exec body
   template<std::size_t Index>
