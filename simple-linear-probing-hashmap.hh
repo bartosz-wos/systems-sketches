@@ -47,11 +47,13 @@ public:
       rehash(table_.empty() ? 16 : table_.size() * 2);
     }
 
+    Key converted_key = std::forward<K>(key);
+
     const std::size_t cap = table_.size();
-    std::size_t idx = hash_index(key, cap);
+    std::size_t idx = hash_index(converted_key, cap);
 
     while(table_[idx].used){
-      if(table_[idx].key == key){
+      if(table_[idx].key == converted_key){
         table_[idx].value = std::forward<V>(value);
         return false;
       }
@@ -59,9 +61,10 @@ public:
       idx = (idx + 1 >= cap) ? 0 : idx + 1;
     }
 
-    table_[idx].key = std::forward<K>(key);
+    table_[idx].key = std::move(converted_key);
     table_[idx].value = std::forward<V>(value);
     table_[idx].used = true;
+    ++size_;
     return true;
   }
 };
