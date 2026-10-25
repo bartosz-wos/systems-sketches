@@ -2,8 +2,11 @@
 
 #include <atomic>
 #include <new>
+#include <memory>
 #include <type_traits>
 #include <cstddef>
+#include <concepts>
+#include <bit>
 
 #if defined(__cpp_lib_hardware_interference_size)
   using std::hardware_destructive_interference_size;
@@ -11,13 +14,16 @@
   constexpr std::size_t hardware_destructive_interference_size = 64;
 #endif
 
+template<std::size_t N>
+concept PowerTwoCapacity = (N >= 2) && std::has_single_bit(N);
 
-template<typename T, std::size_t Capacity>
+template<std::destructible T, std::size_t Capacity>
+requires PowerTwoCapacity<Capacity>
 class SPSCQueue{
 private:
   static constexpr std::size_t INDEX_MASK = Capacity - 1;
 
-  alignas(hardware_destructive_interference_size) alignas(T) std::byte buffer_[Capacity * sizeof(T)];
+  alignas(hardware_destructive_interference_size) alignas(T) std::byte buffer_[Capacity * sizeof(T)]{};
 
   alignas(hardware_destructive_interference_size) std::atomic<std::size_t> head_{ 0 };
   std::size_t cached_tail_{ 0 };
@@ -30,7 +36,7 @@ private:
     return &buffer_[(idx & INDEX_MASK) * sizeof(T)];
   }
 
-  [[nodiscard]]
+  [[nodiscard]] [[maybe_unused]]
   const std::byte* raw_slot(std::size_t idx) const noexcept{
     return &buffer_[(idx & INDEX_MASK) * sizeof(T)];
   }
@@ -40,7 +46,7 @@ private:
     return std::launder(reinterpret_cast<T*>(&buffer_[(idx & INDEX_MASK) * sizeof(T)]));
   }
 
-  [[nodiscard]]
+  [[nodiscard]] [[maybe_unused]]
   const T* slot(std::size_t idx) const noexcept{
     return std::launder(reinterpret_cast<const T*>(&buffer_[(idx & INDEX_MASK) * sizeof(T)]));
   }
@@ -66,6 +72,7 @@ public:
   SPSCQueue& operator=(SPSCQueue&&) = delete;
 
   template<typename... Args>
+  requires std::constructible_from<T, Args...>
   bool try_emplace(Args&&... args){
     const std::size_t head = head_.load(std::memory_order_relaxed);
 
@@ -81,15 +88,15 @@ public:
     return true;
   }
 
-  bool try_push(const T& value){
+  bool try_push(const T& value) requires std::copy_constructible<T>{
     return try_emplace(value);
   }
 
-  bool try_push(T&& value){
+  bool try_push(T&& value) requires std::move_constructible<T>{
     return try_emplace(std::move(value));
   }
 
-  bool try_pop(T& value) noexcept(std::is_nothrow_move_assignable_v<T>){
+  bool try_pop(T& value) noexcept(std::is_nothrow_move_assignable_v<T>) requires std::assignable_from<T&, T&&>{
     const std::size_t tail = tail_.load(std::memory_order_relaxed);
 
     if(tail == cached_head_){
@@ -120,6 +127,12 @@ public:
     return slot(tail);
   }
 
+  void pop() noexcept{
+    const std::size_t tail = tail_.load(std::memory_order_relaxed);
+    std::destroy_at(slot(tail));
+    tail_.store(tail + 1, std::memory_order_release);
+  }
+
   [[nodiscard]]
   bool empty() const noexcept{
     return head_.load(std::memory_order_relaxed) == tail_.load(std::memory_order_relaxed);
@@ -130,12 +143,13 @@ public:
     const std::size_t tail = tail_.load(std::memory_order_relaxed);
     std::atomic_thread_fence(std::memory_order_acquire);
     const std::size_t head = head_.load(std::memory_order_relaxed);
-    return (head >= tail) ? head - tail : 0;
+
+    const std::size_t diff = head - tail;
+    return (diff <= Capacity) ? diff : Capacity;
   }
 
   [[nodiscard]]
   static constexpr std::size_t capacity() noexcept{
     return Capacity;
   }
-
 };
