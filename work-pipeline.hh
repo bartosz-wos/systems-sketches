@@ -33,11 +33,26 @@ struct pipeline_types_helper<Current, F, Later...>{
   ));
 };
 
+
+
+// for mapping tuple of types to tuple of SPSC queues of types
+template<std::size_t Cap, typename Tuple>
+struct queue_tuple_helper;
+
+template<std::size_t Cap, typename... Ts>
+struct queue_tuple_helper<Cap, std::tuple<Ts...>>{
+  using type = std::tuple<SPSCQueue<Ts, Cap>...>;
+};
+
 } //namespace line
 
 
 template<typename T0, typename... Fs>
 using pipeline_types_t = typename line::pipeline_types_helper<std::remove_cvref_t<T0>, Fs...>::type;
+
+
+template<std::size_t Cap, typename T0, typename... Fs>
+using pipeline_queues_t = typename line::queue_tuple_helper<Cap, pipeline_types_t<T0, Fs...>>::type;
 
 
 } // namespace pipe
