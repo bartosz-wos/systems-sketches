@@ -71,6 +71,21 @@ public:
   Pipeline(Pipeline&&) = delete;
   Pipeline& operator=(Pipeline&&) = delete;
 
+  bool try_push(input_type item);
+  bool try_pop(output_type& out);
+
+private:
+  // helper to spawn threads with compile time indices needed for tuple get
+  template<std::size_t... Indices>
+  void start_workers(std::index_sequence<Indices...>);
+
+  // Index thread's exec body
+  template<std::size_t Index>
+  void run_worker(std::stop_token st);
+
+  std::tuple<Fs...> stages_;
+  pipeline_queues_t<Cap, T0, Fs...> queues_;
+  std::array<std::jthread, STAGES> workers_;
 };
 
 } // namespace pipe
