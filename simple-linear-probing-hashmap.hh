@@ -40,5 +40,27 @@ public:
 
   ~LinearProbingHashMap() = default;
 
+  template<typename K, typename V>
+  bool insert(K&& key, V&& value){
+    if(table_.empty() || static_cast<float>(size_ + 1) > static_cast<float>(table_.size()) * load_factor_){
+      rehash(table_.empty() ? 16 : table_.size() * 2);
+    }
 
+    const std::size_t cap = table_.size();
+    std::size_t idx = hash_index(key, cap);
+
+    while(table_[idx].used){
+      if(table_[idx].key == key){
+        table_[idx].value = std::forward<V>(value);
+        return false;
+      }
+
+      idx = (idx + 1 >= cap) ? 0 : idx + 1;
+    }
+
+    table_[idx].key = std::forward<K>(key);
+    table_[idx].value = std::forward<V>(value);
+    table_[idx].used = true;
+    return true;
+  }
 };
