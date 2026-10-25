@@ -12,7 +12,7 @@ struct pipeline_types_helper;
 
 // base case, last function
 template<typename Current>
-struct pipeline_types_helper{
+struct pipeline_types_helper<Current>{
   using type = std::tuple<Current>;
 };
 
