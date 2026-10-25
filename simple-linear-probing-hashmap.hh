@@ -67,4 +67,30 @@ public:
     ++size_;
     return true;
   }
+
+  [[nodiscard]]
+  Value* find(const Key& key) noexcept{
+    if(table_.empty()){
+      return nullptr;
+    }
+
+    const std::size_t cap = table_.size();
+    std::size_t idx = hash(key, cap);
+    const std::size_t start = idx;
+
+    while(table_[idx].used){
+      if(table_[idx].key == key){
+        return &table_[idx].value;
+      }
+
+      idx = (idx + 1 >= cap) ? 0 : idx + 1;
+      if(idx == start){
+        break;
+      }
+    }
+
+    return nullptr;
+  }
+
+
 };
