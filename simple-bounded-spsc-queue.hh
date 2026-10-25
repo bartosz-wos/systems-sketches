@@ -21,6 +21,16 @@ private:
   std::size_t cached_head_{ 0 };
 
   [[nodiscard]]
+  std::byte* raw_slot(std::size_t idx) noexcept{
+    return &buffer_[(idx & INDEX_MASK) * sizeof(T)];
+  }
+
+  [[nodiscard]]
+  const std::byte* raw_slot(std::size_t index) const noexcept{
+    return &buffer_[(idx & INDEX_MASK) * sizeof(T)];
+  }
+
+  [[nodiscard]]
   T* slot(std::size_t idx) noexcept{
     return std::launder(reinterpret_cast<T*>(&buffer[(index & INDEX_MASK) * sizeof(T)]));
   }
@@ -49,4 +59,28 @@ public:
   SPSCQueue& operator=(const SPSCQueue&) = delete;
   SPSCQueue(SPSCQueue&&) = delete;
   SPSCQueue& operator=(SPSCQueue&&) = delete;
+
+  template<typename... Args>
+  bool try_emplace(Args&&... args){
+    const std::size_t head = head_.load(std::memory_order_relaxed);
+
+    if(head - cached_tail_ == Capacity){
+      cached_tail_ = tail_.load(std::memory_order_acquire);
+      if(head - cached_tail_ == Capacity){
+        return false;
+      }
+    }
+
+    std::construct_at(reinterpret_cast<T*>(raw_slot(head)), std::forward<Args>(args)...);
+    head_.store(head + 1, std::memory_order_release);
+    return true;
+  }
+
+  bool try_push(const T& value){
+    return try_emplace(value);
+  }
+
+  bool try_push(T&& value){
+    return try_emplace(std::move(value));
+  }
 };
