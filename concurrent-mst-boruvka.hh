@@ -168,7 +168,7 @@ public:
 
           if(set_union(chosen_edge.u, chosen_edge.v)){
             thread_states[thread_id].local_mst_edges.push_back(chosen_edge.id);
-            thread_states.local_weight += chosen_edge.weight;
+            thread_states[thread_id].local_weight += chosen_edge.weight;
             ++local_merges;
           }
         }
@@ -207,11 +207,11 @@ public:
     result.mst_edge_ids.reserve(vertices - result.comps);
 
     for(uint32_t i = 0; i < threads; ++i){
-      result.tot_weight += thread_local_state[i].local_weight;
+      result.tot_weight += thread_states[i].local_weight;
       result.mst_edge_ids.insert(
           result.mst_edge_ids.end(),
-          thread_local_state[i].local_mst_edges.begin(),
-          thread_local_state[i].local_mst_edges.end()
+          thread_states[i].local_mst_edges.begin(),
+          thread_states[i].local_mst_edges.end()
       );
     }
 
