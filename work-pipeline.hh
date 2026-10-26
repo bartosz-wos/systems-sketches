@@ -67,7 +67,11 @@ public:
   using input_type = std::tuple_element_t<0, all_types>;
   using output_type = std::tuple_element_t<STAGES, all_types>;
 
-  explicit Pipeline(Fs... stages);
+  explicit Pipeline(Fs... stages)
+  : stages_{ std::move(stages)... }
+  {
+    start_workers(std::make_index_sequence<STAGES>{});
+  }
   ~Pipeline() = default;
 
   Pipeline(const Pipeline&) = delete;
@@ -75,8 +79,13 @@ public:
   Pipeline(Pipeline&&) = delete;
   Pipeline& operator=(Pipeline&&) = delete;
 
-  bool try_push(input_type item);
-  bool try_pop(output_type& out);
+  bool try_push(input_type item){
+    return std::get<0>(queues_).try_push(std::move(item));
+  }
+
+  bool try_pop(output_type& out){
+    return std::get<STAGES>(queues_).try_pop(out);
+  }
 
 private:
   // helper to spawn threads with compile time indices needed for tuple get
