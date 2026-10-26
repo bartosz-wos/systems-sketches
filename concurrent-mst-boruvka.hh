@@ -42,10 +42,10 @@ public:
     auto dsu = std::make_unique<std::atomic<uint32_t>[]>(vertices);
     auto best_edges = std::make_unique<std::atomic<uint64_t>[]>(vertices);
 
-    struct thread_local_state{
-      std::vector<uint32_t> local_mst_edges{};
-      uint64_t local_weight = 0;
-      uint32_t merges_this_phase = 0;
+    struct alignas(64) thread_local_state{
+      std::vector<uint32_t> local_mst_edges{}; // 24
+      uint64_t local_weight = 0;               // 8
+      uint32_t merges_this_phase = 0;          // 4
     };
 
     std::vector<thread_local_state> thread_states(threads);
