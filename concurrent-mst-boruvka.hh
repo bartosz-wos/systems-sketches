@@ -52,14 +52,6 @@ public:
     CPU_ZERO(&orig_cpuset);
     pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &orig_cpuset);
 
-    if(pin_threads){
-      cpu_set_t cpuset;
-      CPU_ZERO(&cpuset);
-      uint32_t core_id = (threads < hw_cores) ? 0 : 1;
-      CPU_SET(core_id % hw_cores, &cpuset);
-      pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
-    }
-
     auto dsu = std::make_unique<std::atomic<uint32_t>[]>(vertices);
     auto best_edges = std::make_unique<std::atomic<uint64_t>[]>(vertices);
 
@@ -183,6 +175,11 @@ public:
           std::size_t write_idx = 0;
 
           for(std::size_t k = 0; k < active_count; ++k){
+            if(k + 8 < active_count){
+              uint32_t prefetch = active_edges[k + 8];
+              __builtin_prefetch(&dsu[edges[prefetch].u], 0, 2);
+              __builtin_prefetch(&dsu[edges[prefetch].v], 0, 2);
+            }
             uint32_t i = active_edges[k];
             uint32_t pu = find_root(edges[i].u, std::memory_order_relaxed);
             uint32_t pv = find_root(edges[i].v, std::memory_order_relaxed);
@@ -236,13 +233,19 @@ public:
           if(pin_threads){
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
-            uint32_t core_id = (threads < hw_cores) ? (i + 1) : i;
-            CPU_SET(core_id % hw_cores, &cpuset);
+            CPU_SET((i + 1) % hw_cores, &cpuset);
             pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
           }
 
           mst_run(i);
       });
+    }
+
+    if(pin_threads){
+      cpu_set_t cpuset;
+      CPU_ZERO(&cpuset);
+      CPU_SET(1 % hw_cores, &cpuset);
+      pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
     }
 
     mst_run(0);
