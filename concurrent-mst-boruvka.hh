@@ -9,6 +9,8 @@
 #include <thread>
 #include <vector>
 #include <cassert>
+#include <pthread.h>
+#include <sched.h>
 
 namespace graph{
 
@@ -42,7 +44,22 @@ public:
     }
 
     threads = std::min<uint32_t>(threads, static_cast<uint32_t>(edges.size())); // edges.size() > 0, no need for == 0 case
-    
+
+    const uint32_t hw_cores = std::max<uint32_t>(1u, std::thread::hardware_concurrency());
+    const bool pin_threads = (threads <= hw_cores);
+
+    cpu_set_t orig_cpuset;
+    CPU_ZERO(&orig_cpuset);
+    pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &orig_cpuset);
+
+    if(pin_threads){
+      cpu_set_t cpuset;
+      CPU_ZERO(&cpuset);
+      uint32_t core_id = (threads < hw_cores) ? 0 : 1;
+      CPU_SET(core_id % hw_cores, &cpuset);
+      pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+    }
+
     auto dsu = std::make_unique<std::atomic<uint32_t>[]>(vertices);
     auto best_edges = std::make_unique<std::atomic<uint64_t>[]>(vertices);
 
@@ -140,18 +157,45 @@ public:
       }
       thread_states[thread_id].local_mst_edges.reserve(vertices / threads + 16);
 
+      std::vector<uint32_t> active_edges;
+      active_edges.reserve(e_end - e_begin);
+      bool first_round = true;
+
       phase_barrier.arrive_and_wait();
 
       while(!stop){
-        for(std::size_t i = e_begin; i < e_end; ++i){
-          uint32_t pu = find_root(edges[i].u, std::memory_order_relaxed);
-          uint32_t pv = find_root(edges[i].v, std::memory_order_relaxed);
+        if(first_round) [[unlikely]]{
+          for(uint32_t i = e_begin; i < e_end; ++i){
+            uint32_t u = edges[i].u;
+            uint32_t v = edges[i].v;
 
-          if(pu != pv){
-            uint64_t cost_id = (static_cast<uint64_t>(edges[i].weight) << 32) | static_cast<uint32_t>(i);
-            update_best_edge(pu, cost_id);
-            update_best_edge(pv, cost_id);
+            if(u != v){
+              uint64_t cost_idx = (static_cast<uint64_t>(edges[i].weight) << 32) | i;
+              update_best_edge(u, cost_idx);
+              update_best_edge(v, cost_idx);
+              active_edges.push_back(static_cast<uint32_t>(i));
+            }
           }
+
+          first_round = false;
+        }else{
+          const std::size_t active_count = active_edges.size();
+          std::size_t write_idx = 0;
+
+          for(std::size_t k = 0; k < active_count; ++k){
+            uint32_t i = active_edges[k];
+            uint32_t pu = find_root(edges[i].u, std::memory_order_relaxed);
+            uint32_t pv = find_root(edges[i].v, std::memory_order_relaxed);
+
+            if(pu != pv){
+              uint64_t cost_idx = (static_cast<uint64_t>(edges[i].weight) << 32) | i;
+              update_best_edge(pu, cost_idx);
+              update_best_edge(pv, cost_idx);
+              active_edges[write_idx++] = i;
+            }
+          }
+
+          active_edges.resize(write_idx);
         }
 
         phase_barrier.arrive_and_wait();
@@ -188,7 +232,17 @@ public:
     threads_vector.reserve(threads - 1);
 
     for(uint32_t i = 1; i < threads; ++i){
-      threads_vector.emplace_back(mst_run, i);
+      threads_vector.emplace_back([&, i](){
+          if(pin_threads){
+            cpu_set_t cpuset;
+            CPU_ZERO(&cpuset);
+            uint32_t core_id = (threads < hw_cores) ? (i + 1) : i;
+            CPU_SET(core_id % hw_cores, &cpuset);
+            pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+          }
+
+          mst_run(i);
+      });
     }
 
     mst_run(0);
@@ -197,6 +251,10 @@ public:
       if(t.joinable()){
         t.join();
       }
+    }
+
+    if(pin_threads){
+      pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &orig_cpuset);
     }
 
     mst_result result;
