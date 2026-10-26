@@ -86,7 +86,99 @@ class ConcurrentBoruvka{
       }
     };
 
+    // cas loop for updating the chosen edge for a component
+    auto update_best_edge = [&](uint32_t comp, uint64_t cost_id) noexcept{
+      uint64_t cur = best_edges[comp].load(std::memory_order_relaxed);
+      while(cost_id < cur){
+        if(best_edges[comp].compare_exchange_weak(cost_id, v, std::memory_order_relaxed, std::memory_order_relaxed)){
+          break;
+        }
+      }
+    };
+
+    std::barrier phase_barrier(threads);
+
+    // the function runs when barrier falls
+    std::barrier round_finish_barrier(threads, [&]() noexcept{
+        uint32_t merged = merges.load(std::memory_order_relaxed);
+        uint32_t rem = remaining_comps.fetch_sub(merged, std::memory_order_relaxed) - merged;
+
+        if(merged == 0 || rem <= 1){
+          stop = true;
+        }
+
+        merges.store(0, std::memory_order_relaxed);
+    });
+
+
+    auto mst_run = [&](uint32_t thread_id){
+      const uint32_t v_block = (vertices + threads - 1) / threads;
+      const uint32_t v_begin = std::min<uint32_t>(vertices, thread_id * v_block);
+      const uint32_t v_end = std::min<uint32_t>(vertices, v_begin + v_block);
+
+      const std::size_t num_edges = edges.size();
+      const std::size_t e_chunk = (num_edges + threads - 1) / threads;
+      const std::size_t e_begin = std::min<std::size_t>(num_edges, static_cast<std::size_t>(thread_id) * e_chunk);
+      const std::size_t e_end = std::min<std::size_t>(num_edges, e_begin + e_chunk);
+
+      for(uint32_t v = v_begin; v < v_end; ++v){
+        dsu[v].store(v, std::memory_order_relaxed);
+        best_edges[v].store(INF, std::memory_order_relaxed);
+      }
+      thread_local_state[thread_id].local_mst_edges.reserve(vertices / threads + 16);
+
+      phase_barrier.arrive_and_wait();
+
+      while(!stop){
+        for(std::size_t i = e_begin; i < e_end; ++i){
+          uint32_t pu = find_root(edges[i].u, std::memory_order_relaxed);
+          uint32_t pv = find_root(edges[i].v, std::memory_order_relaxed);
+
+          if(pu != pv){
+            uint64_t cost_id = (static_cast<uint64_t>(edges[i].weight) << 32) | edges[i].id;
+            update_best_edge(pu, cost_id);
+            update_best_edge(pv, cost_id);
+          }
+        }
+      }
+
+      phase_barrier.arrive_and_wait();
+
+      uint32_t local_merges = 0;
+
+      for(uint32_t v = v_begin; v < v_end; ++v){
+        uint64_t cost_id = best_edges[v].load(std::memory_order_relaxed);
+        if(cost_id == INF){
+          continue;
+        }
+
+        best_edges[v].store(INF, std::memory_order_relaxed);
+
+        uint32_t edges_idx = static_cast<uint32_t>(cost_id & 0xFFFFFFFFULL);
+        const edge& chosen_edge = edges[edges_idx];
+
+        if(set_union(chosen.u, chosen.v)){
+          thread_local_state[thread_id].local_mst_edges.push_back(chosen.id);
+          thread_local_state.local_weight += chosen.weight;
+          ++local_merges;
+        }
+      }
+
+      if(local_merges > 0){
+        merges.fetch_add(local_merges, std::memory_order_relaxed);
+      }
+
+      phase_barrier.arrive_and_wait();
+
+      for(uint32_t v = v_begin; v < v_end; ++v){
+        find_root(v, std::memory_order_relaxed);
+      }
+
+      round_finish_barrier.arrive_and_wait();
+    };
+
+
   }
 };
 
-}
+} // namespace graph
