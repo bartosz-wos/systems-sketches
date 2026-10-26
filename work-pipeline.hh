@@ -144,7 +144,7 @@ private:
 
 template<std::size_t Cap, typename T0, typename... Fs>
 auto make_pipeline(Fs&&... stages){
-  return Pipeline<Cap, T0, std::decay<Fs>...>(std::forward<Fs>(stages)...);
+  return Pipeline<Cap, T0, std::decay_t<Fs>...>(std::forward<Fs>(stages)...);
 }
 
 } // namespace pipe
