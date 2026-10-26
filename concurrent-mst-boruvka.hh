@@ -29,6 +29,8 @@ public:
   static constexpr uint64_t INF = std::numeric_limits<uint64_t>::max();
 
   static mst_result get_mst(uint32_t vertices, const std::vector<edge>& edges, uint32_t threads = std::thread::hardware_concurrency()){
+    assert(edges.size() < INF);
+
     if(vertices <= 1 || edges.empty()) [[unlikely]]{
       return { 0, vertices, {} };
     }
@@ -45,7 +47,6 @@ public:
     struct alignas(64) thread_local_state{
       std::vector<uint32_t> local_mst_edges{}; // 24
       uint64_t local_weight = 0;               // 8
-      uint32_t merges_this_phase = 0;          // 4
     };
 
     std::vector<thread_local_state> thread_states(threads);
@@ -76,7 +77,7 @@ public:
     };
 
     // attach bigger root id to the smaller one
-    auto set_union = [&](uint32_t u, uint32_t v) noexcept -> uint32_t{
+    auto set_union = [&](uint32_t u, uint32_t v) noexcept -> bool{
       while(true){
         uint32_t pu = find_root(u, std::memory_order_acquire);
         uint32_t pv = find_root(v, std::memory_order_acquire);
@@ -145,7 +146,7 @@ public:
           uint32_t pv = find_root(edges[i].v, std::memory_order_relaxed);
 
           if(pu != pv){
-            uint64_t cost_id = (static_cast<uint64_t>(edges[i].weight) << 32) | edges[i].id;
+            uint64_t cost_id = (static_cast<uint64_t>(edges[i].weight) << 32) | static_cast<uint32_t>(i);
             update_best_edge(pu, cost_id);
             update_best_edge(pv, cost_id);
           }
@@ -156,14 +157,14 @@ public:
         uint32_t local_merges = 0;
 
         for(uint32_t v = v_begin; v < v_end; ++v){
-          uint64_t cost_id = best_edges[v].load(std::memory_order_relaxed);
-          if(cost_id == INF){
+          uint64_t cost_idx = best_edges[v].load(std::memory_order_relaxed);
+          if(cost_idx == INF){
             continue;
           }
 
           best_edges[v].store(INF, std::memory_order_relaxed);
 
-          uint32_t edges_idx = static_cast<uint32_t>(cost_id & 0xFFFFFFFFULL);
+          uint32_t edges_idx = static_cast<uint32_t>(cost_idx & 0xFFFFFFFFULL);
           const edge& chosen_edge = edges[edges_idx];
 
           if(set_union(chosen_edge.u, chosen_edge.v)){
@@ -175,12 +176,6 @@ public:
 
         if(local_merges > 0){
           merges.fetch_add(local_merges, std::memory_order_relaxed);
-        }
-
-        phase_barrier.arrive_and_wait();
-
-        for(uint32_t v = v_begin; v < v_end; ++v){
-          find_root(v, std::memory_order_relaxed);
         }
 
         round_finish_barrier.arrive_and_wait();
