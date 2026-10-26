@@ -25,6 +25,7 @@ struct mst_result{
   std::vector<uint32_t> mst_edge_ids;
 };
 
+// verified with thread sanitizer and address sanitizer
 class ConcurrentBoruvka{
 public:
   static constexpr uint64_t INF = std::numeric_limits<uint64_t>::max();
