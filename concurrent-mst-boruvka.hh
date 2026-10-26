@@ -65,6 +65,27 @@ class ConcurrentBoruvka{
       }
     };
 
+    // attach bigger root id to the smaller one
+    auto set_union = [&](uint32_t u, uint32_t v) noexcept -> uint32_t{
+      while(true){
+        uint32_t pu = find_root(u, std::memory_order_acquire);
+        uint32_t pv = find_root(v, std::memory_order_acquire);
+
+        if(pu == pv){
+          return false;
+        }
+
+        if(pu > pv){
+          std::swap(pu, pv);
+        }
+
+        uint32_t expected = pv;
+        if(dsu[pv].compare_exchange_weak(expected, pu, std::memory_order_release, std::memory_order_relaxed)){
+          return true;
+        }
+      }
+    };
+
   }
 };
 
