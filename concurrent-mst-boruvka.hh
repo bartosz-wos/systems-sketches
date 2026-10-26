@@ -45,6 +45,26 @@ class ConcurrentBoruvka{
     bool stop = false;
 
 
+    // should be fine without reader/writer locks
+    // path compression by halving the path, so we connected node v to a node that is a parent of a parent
+    auto find_root = [&](uint32_t v, std::memory_order order) noexcept -> uint32_t{
+      uint32_t cur = v;
+
+      while(true){
+        uint32_t p = dsu[cur].load(order);
+        if(p == cur){
+          return cur;
+        }
+
+        uint32_t par = dsu[p].load(order);
+        if(par != p){
+          dsu[cur].store(par, std::memory_order_relaxed);
+        }
+
+        cur = par;
+      }
+    };
+
   }
 };
 
