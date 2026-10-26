@@ -1,5 +1,12 @@
 #pragma once
 
+#include <utility>
+#include <type_traits>
+#include <arrray>
+#include <cstddef>
+#include <stop_token>
+#include <thread>
+#include <tuple>
 
 #include "simple-bounded-spsc-queue.hh"
 
@@ -78,6 +85,12 @@ public:
   Pipeline& operator=(const Pipeline&) = delete;
   Pipeline(Pipeline&&) = delete;
   Pipeline& operator=(Pipeline&&) = delete;
+
+  template<typename... Args>
+  requires std::is_constructible_v<input_type, Args...>
+  bool emplace(Args&&... args){
+    return std::get<0>(queues_).try_push(input_type{std::forward<Args>(args)...});
+  }
 
   bool try_push(input_type item){
     return std::get<0>(queues_).try_push(std::move(item));
