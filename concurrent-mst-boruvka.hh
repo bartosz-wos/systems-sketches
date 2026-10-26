@@ -8,6 +8,7 @@
 #include <memory>
 #include <thread>
 #include <vector>
+#include <cassert>
 
 namespace graph{
 
