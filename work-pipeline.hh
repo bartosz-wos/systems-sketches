@@ -2,7 +2,7 @@
 
 #include <utility>
 #include <type_traits>
-#include <arrray>
+#include <array>
 #include <cstddef>
 #include <stop_token>
 #include <thread>
