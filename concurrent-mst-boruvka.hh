@@ -177,7 +177,35 @@ class ConcurrentBoruvka{
       round_finish_barrier.arrive_and_wait();
     };
 
+    std::vector<std::thread> threads_vector;
+    threads_vector.reserve(threads - 1);
 
+    for(uint32_t i = 1; i < threads; ++i){
+      threads_vector.emplace_back(mst_run, i);
+    }
+
+    mst_run(0);
+
+    for(auto& t : threads_vector){
+      if(t.joinable()){
+        t.join();
+      }
+    }
+
+    mst_result result;
+    result.comps = remaining_comps.load(std::memory_order_relaxed);
+    result.mst_edge_ids.reserve(vertices - result.comps);
+
+    for(uint32_t i = 0; i < threads; ++i){
+      result.tot_weight += thread_local_state[i].local_weight;
+      result.mst_edge_ids.insert(
+          result.mst_edge_ids.end(),
+          thread_local_state[i].local_mst_edges.begin(),
+          thread_local_state[i].local_mst_edges.end()
+      );
+    }
+
+    return result;
   }
 };
 
