@@ -16,6 +16,7 @@ struct mst_result{
 };
 
 class ConcurrentBoruvka{
+public:
   static constexpr uint64_t INF = std::numeric_limits<uint64_t>::max();
 
   static mst_result get_mst(uint32_t vertices, const std::vector<edge>& edges, uint32_t threads = std::thread::hardware_concurrency()){
@@ -30,7 +31,7 @@ class ConcurrentBoruvka{
     threads = std::min<uint32_t>(threads, static_cast<uint32_t>(edges.size())); // edges.size() > 0, no need for == 0 case
     
     auto dsu = std::make_unique<std::atomic<uint32_t>[]>(vertices);
-    auto best_edges = std::make_unique<std::atomic<uint32_t>[]>(vertices);
+    auto best_edges = std::make_unique<std::atomic<uint64_t>[]>(vertices);
 
     struct thread_local_state{
       std::vector<uint32_t> local_mst_edges{};
@@ -38,7 +39,7 @@ class ConcurrentBoruvka{
       uint32_t merges_this_phase = 0;
     };
 
-    std::vector<thread_local_state> thread_states(vertices);
+    std::vector<thread_local_state> thread_states(threads);
 
     std::atomic<uint32_t> remaining_comps{ vertices };
     std::atomic<uint32_t> merges{ 0 };
@@ -90,7 +91,7 @@ class ConcurrentBoruvka{
     auto update_best_edge = [&](uint32_t comp, uint64_t cost_id) noexcept{
       uint64_t cur = best_edges[comp].load(std::memory_order_relaxed);
       while(cost_id < cur){
-        if(best_edges[comp].compare_exchange_weak(cost_id, v, std::memory_order_relaxed, std::memory_order_relaxed)){
+        if(best_edges[comp].compare_exchange_weak(cur, cost_id, std::memory_order_relaxed, std::memory_order_relaxed)){
           break;
         }
       }
@@ -125,7 +126,7 @@ class ConcurrentBoruvka{
         dsu[v].store(v, std::memory_order_relaxed);
         best_edges[v].store(INF, std::memory_order_relaxed);
       }
-      thread_local_state[thread_id].local_mst_edges.reserve(vertices / threads + 16);
+      thread_states[thread_id].local_mst_edges.reserve(vertices / threads + 16);
 
       phase_barrier.arrive_and_wait();
 
@@ -140,41 +141,41 @@ class ConcurrentBoruvka{
             update_best_edge(pv, cost_id);
           }
         }
-      }
 
-      phase_barrier.arrive_and_wait();
+        phase_barrier.arrive_and_wait();
 
-      uint32_t local_merges = 0;
+        uint32_t local_merges = 0;
 
-      for(uint32_t v = v_begin; v < v_end; ++v){
-        uint64_t cost_id = best_edges[v].load(std::memory_order_relaxed);
-        if(cost_id == INF){
-          continue;
+        for(uint32_t v = v_begin; v < v_end; ++v){
+          uint64_t cost_id = best_edges[v].load(std::memory_order_relaxed);
+          if(cost_id == INF){
+            continue;
+          }
+
+          best_edges[v].store(INF, std::memory_order_relaxed);
+
+          uint32_t edges_idx = static_cast<uint32_t>(cost_id & 0xFFFFFFFFULL);
+          const edge& chosen_edge = edges[edges_idx];
+
+          if(set_union(chosen_edge.u, chosen_edge.v)){
+            thread_states[thread_id].local_mst_edges.push_back(chosen_edge.id);
+            thread_states.local_weight += chosen_edge.weight;
+            ++local_merges;
+          }
         }
 
-        best_edges[v].store(INF, std::memory_order_relaxed);
-
-        uint32_t edges_idx = static_cast<uint32_t>(cost_id & 0xFFFFFFFFULL);
-        const edge& chosen_edge = edges[edges_idx];
-
-        if(set_union(chosen.u, chosen.v)){
-          thread_local_state[thread_id].local_mst_edges.push_back(chosen.id);
-          thread_local_state.local_weight += chosen.weight;
-          ++local_merges;
+        if(local_merges > 0){
+          merges.fetch_add(local_merges, std::memory_order_relaxed);
         }
+
+        phase_barrier.arrive_and_wait();
+
+        for(uint32_t v = v_begin; v < v_end; ++v){
+          find_root(v, std::memory_order_relaxed);
+        }
+
+        round_finish_barrier.arrive_and_wait();
       }
-
-      if(local_merges > 0){
-        merges.fetch_add(local_merges, std::memory_order_relaxed);
-      }
-
-      phase_barrier.arrive_and_wait();
-
-      for(uint32_t v = v_begin; v < v_end; ++v){
-        find_root(v, std::memory_order_relaxed);
-      }
-
-      round_finish_barrier.arrive_and_wait();
     };
 
     std::vector<std::thread> threads_vector;
