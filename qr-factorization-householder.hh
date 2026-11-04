@@ -60,27 +60,27 @@ struct householder_reflector{
 
 template<std::floating_point T = double>
 struct qr_result{
-  matrix<T> Q;
-  matrix<T> R;
+  matrix<T> Q_matrix;
+  matrix<T> R_matrix;
 
   [[nodiscard]]
-  matrix_view Q() noexcept{
-    return Q.view();
+  matrix_view<T> Q() noexcept{
+    return Q_matrix.view();
   }
 
   [[nodiscard]]
   matrix_view<T> R() noexcept{
-    return R.view();
+    return R_matrix.view();
   }
 
   [[nodiscard]]
   const_matrix_view<T> Q() const noexcept{
-    return Q.view();
+    return Q_matrix.view();
   }
 
   [[nodiscard]]
-  const_matrix_view R() const noexcept{
-    return R.view();
+  const_matrix_view<T> R() const noexcept{
+    return R_matrix.view();
   }
 };
 
@@ -105,7 +105,7 @@ matrix<T> transpose(const_matrix_view<T> A){
   matrix<T> AT(A.extent(1), A.extent(0));
   auto at_view = AT.view();
 
-  for(std::size_t : std::views::iota(std::size_t{0}, A.extent(0))){
+  for(std::size_t i : std::views::iota(std::size_t{0}, A.extent(0))){
     for(std::size_t j : std::views::iota(std::size_t{0}, A.extent(1))){
       at_view[j, i] = A[i, j];
     }
@@ -128,7 +128,7 @@ qr_result<T> householder_qr(const_matrix_view<T> A){
     }
   }
 
-  std::vector<template householder_reflector<T>> reflectors;
+  std::vector<householder_reflector<T>> reflectors;
   reflectors.reserve(std::min(m - 1, n));
   const std::size_t steps = std::min(m - 1, n);
 
