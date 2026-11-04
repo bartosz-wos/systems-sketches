@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <numeric>
 #include <cassert>
+#include <type_traits>
 
 namespace linalg{
 
