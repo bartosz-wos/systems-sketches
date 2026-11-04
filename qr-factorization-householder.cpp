@@ -45,5 +45,38 @@ struct matrix{
   }
 };
 
+template<std::floating_point T = double>
+struct householder_reflector{
+  std::size_t k{};
+  std::vector<T> v;
+  T tau{};
+};
+
+template<std::floating_point T = double>
+struct qr_result{
+  matrix<T> Q;
+  matrix<T> R;
+
+  [[nodiscard]]
+  matrix_view Q() noexcept{
+    return Q.view();
+  }
+
+  [[nodiscard]]
+  matrix_view<T> R() noexcept{
+    return R.view();
+  }
+
+  [[nodiscard]]
+  const_matrix_view<T> Q() const noexcept{
+    return Q.view();
+  }
+
+  [[nodiscard]]
+  const_matrix_view R() const noexcept{
+    return R.view();
+  }
+};
+
 
 } //namespace linalg
