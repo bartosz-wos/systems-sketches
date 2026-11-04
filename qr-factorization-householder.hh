@@ -5,6 +5,9 @@
 #include <mdspan>
 #include <ranges>
 #include <concepts>
+#include <algorithm>
+#include <cstddef>
+#include <numeric>
 
 namespace linalg{
 
@@ -194,7 +197,7 @@ qr_result<T> householder_qr(const_matrix_view<T> A){
     }
   }
 
-  return {std::move(Q_matrix), std::move(R)};
+  return {std::move(Q_matrix), std::move(R_matrix)};
 }
 
 } //namespace linalg
