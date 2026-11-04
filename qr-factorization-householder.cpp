@@ -78,5 +78,33 @@ struct qr_result{
   }
 };
 
+template<std::floating_point T = double>
+[[nodiscard]]
+matrix<T> matrix_multiply(const_matrix_view<T> A, const_matrix_view<T> B){
+  matrix<T> C(A.extent(0), B.extent(1), T{0});
+  auto c_view = C.view();
+
+  for(std::size_t i : std::views::iota(std::size_t{0}, A.extent(0))){
+    for(std::size_t k : std::views::iota(std::size_t{0}, A.extent(1))){
+      for(std::size_t j : std::views::iota(std::size_t{0}, B.extent(1)))
+        c_view[i, j] += A[i, k] * B[k, j];
+    }
+  }
+  return C;
+}
+
+template<std::floating_point T = double>
+[[nodiscard]]
+matrix<T> transpose(const_matrix_view<T> A){
+  matrix<T> AT(A.extent(1), A.extent(0));
+  auto at_view = AT.view();
+
+  for(std::size_t : std::views::iota(std::size_t{0}, A.extent(0))){
+    for(std::size_t j : std::views::iota(std::size_t{0}, A.extent(1))){
+      at_view[j, i] = A[i, j];
+    }
+  }
+  return AT;
+}
 
 } //namespace linalg
