@@ -1,5 +1,11 @@
 #pragma once
 
+#include <vector>
+#include <cmath>
+#include <mdspan>
+#include <ranges>
+#include <concepts>
+
 namespace linalg{
 
 using extents2D = std::dextents<std::size_t, 2>;
