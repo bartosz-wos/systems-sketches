@@ -164,12 +164,6 @@ qr_result<std::remove_cv_t<e>> householder_qr(matrix_view<e> A){
 
     const T tau = static_cast<T>(1) / (norm_x * std::abs(v[0]));
 
-    if(v_sq > static_cast<T>(1e-15)) [[likely]]{
-      tau = static_cast<T>(2) / v_sq;
-    }else [[unlikely]]{
-      tau = T{0};
-    }
-
     for(std::size_t j : std::views::iota(k, n)){
       T dot = T{0};
       for(std::size_t i : std::views::iota(std::size_t{0}, p)){
