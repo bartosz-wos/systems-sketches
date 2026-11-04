@@ -142,7 +142,7 @@ qr_result<std::remove_cv_t<e>> householder_qr(matrix_view<e> A){
 
   std::vector<householder_reflector<T>> reflectors;
   reflectors.reserve(std::min(m - 1, n));
-  const std::size_t steps = std::min(m - 1, n);
+  const std::size_t steps = (m == 0) ? 0 : std::min(m - 1, n);
 
   for(std::size_t k : std::views::iota(std::size_t{0}, steps)){
     const std::size_t p = m - k;
@@ -162,8 +162,7 @@ qr_result<std::remove_cv_t<e>> householder_qr(matrix_view<e> A){
     const T sign = (v[0] >= T{0}) ? T{1} : T{-1};
     v[0] += sign * norm_x;
 
-    const T v_sq = std::inner_product(v.begin(), v.end(), v.begin(), T{0});
-    T tau = T{0};
+    const T tau = static_cast<T>(1) / (norm_x * std::abs(v[0]));
 
     if(v_sq > static_cast<T>(1e-15)) [[likely]]{
       tau = static_cast<T>(2) / v_sq;
