@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <numeric>
+#include <cassert>
 
 namespace linalg{
 
@@ -18,6 +19,9 @@ using matrix_view = std::mdspan<T, extents2D>;
 
 template<typename T>
 using const_matrix_view = std::mdspan<const T, extents2D>;
+
+template<typename T>
+concept matrix_element = std::floating_point<std::remove_cv_t<T>>;
 
 template<std::floating_point T = double>
 struct matrix{
@@ -87,9 +91,12 @@ struct qr_result{
   }
 };
 
-template<std::floating_point T = double>
+template<matrix_element e1, matrix_element e2>
 [[nodiscard]]
-matrix<T> matrix_multiply(const_matrix_view<T> A, const_matrix_view<T> B){
+auto matrix_multiply(matrix_view<e1> A, matrix_view<e2> B){
+  using T = std::common_type_t<std::remove_cv_t<e1>, std::remove_cv_t<e2>>;
+  assert(A.extent(1) == B.extent(0));
+
   matrix<T> C(A.extent(0), B.extent(1), T{0});
   auto c_view = C.view();
 
@@ -102,9 +109,10 @@ matrix<T> matrix_multiply(const_matrix_view<T> A, const_matrix_view<T> B){
   return C;
 }
 
-template<std::floating_point T = double>
+template<matrix_element e>
 [[nodiscard]]
-matrix<T> transpose(const_matrix_view<T> A){
+matrix<std::remove_cv_t<e>> transpose(matrix_view<e> A){
+  using T = std::remove_cv_t<e>;
   matrix<T> AT(A.extent(1), A.extent(0));
   auto at_view = AT.view();
 
@@ -116,9 +124,10 @@ matrix<T> transpose(const_matrix_view<T> A){
   return AT;
 }
 
-template<std::floating_point T = double>
+template<matrix_element e>
 [[nodiscard]]
-qr_result<T> householder_qr(const_matrix_view<T> A){
+qr_result<std::remove_cv_t<e>> householder_qr(matrix_view<e> A){
+  using T = std::remove_cv_t<e>;
   const std::size_t m = A.extent(0);
   const std::size_t n = A.extent(1);
 
